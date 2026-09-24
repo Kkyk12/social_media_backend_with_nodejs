@@ -338,7 +338,7 @@ Content-Type: application/json
 
 ```json
 {
-    "email": "kkyk1286@example.com",
+    "email": "youremail@example.com",
     "password": "mysecretpassword"
 }
 ```
