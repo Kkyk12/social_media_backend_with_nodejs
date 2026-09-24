@@ -1,5 +1,6 @@
 const authService = require("../services/auth.service");
 const sessionService = require("../services/session.service");
+const conversationService = require("../services/conversation.service");
 const register = async (req, res) => {
     try {
         const {
@@ -45,6 +46,7 @@ const login = async (req, res) => {
             userAgent: req.get("user-agent"),
             ipAddress: req.ip
         });
+        const inbox = await conversationService.getUserInbox(result.user._id);
 
         res.json({
             message: "Login successful",
@@ -58,7 +60,8 @@ const login = async (req, res) => {
                 username: result.user.username,
                 email: result.user.email,
                 displayName: result.user.displayName
-            }
+            },
+            inbox
         });
 
     } catch (error) {

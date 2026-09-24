@@ -14,8 +14,8 @@ This project is mainly a learning and engineering project focused on building a 
 * **bcryptjs**
 * **express-validator**
 * **express-rate-limit**
-* **Socket.IO** *(planned)*
-* **Redis** *(planned)*
+* **Socket.IO**
+* **Redis** *(optional; used for presence, rate limiting, and Socket.IO scaling)*
 
 ## Current Features
 
@@ -44,7 +44,23 @@ This project is mainly a learning and engineering project focused on building a 
 * Login rate limiting
 * Protected routes
 
+### Users, conversations, and messages
+
+* Profile updates, usernames, display names, bios, and avatar URLs
+* User search and online/offline presence
+* Private conversations, groups, and channels
+* Conversation membership, owner/admin/member roles, joining, leaving, and blocking
+* Message replies, forwards, edits, soft deletes, pagination, search, and read receipts
+
+### Real-time messaging
+
+* JWT-authenticated Socket.IO connections
+* New, edited, and deleted message events
+* Typing indicators, online presence, and read-receipt events
+
 ## API
+
+See [API.md](API.md) for the concise endpoint and Socket.IO reference.
 
 ### Authentication
 
@@ -58,9 +74,38 @@ This project is mainly a learning and engineering project focused on building a 
 
 ### Users
 
-| Method | Endpoint        | Description            |
-| ------ | --------------- | ---------------------- |
-| `GET`  | `/api/users/me` | Get authenticated user |
+| Method | Endpoint | Description |
+| ------ | ------ | ------ |
+| `GET` | `/api/users/me` | Get authenticated user |
+| `PATCH` | `/api/users/me` | Update username, display name, bio, or avatar URL |
+| `POST` | `/api/users/me/presence` | Set online/offline status |
+| `GET` | `/api/users/search?q=...` | Search users by username or display name |
+| `POST` / `DELETE` | `/api/users/:userId/block` | Block or unblock a user |
+
+### Conversations and messages
+
+All endpoints below require a Bearer access token. Set `type` to `private`, `group`, or `channel` when creating a conversation.
+
+| Method | Endpoint | Description |
+| ------ | ------ | ------ |
+| `POST` | `/api/conversations` | Create a private conversation, group, or channel |
+| `GET` | `/api/conversations` | List conversations for the current user |
+| `GET` | `/api/conversations/:conversationId` | Get members and roles |
+| `POST` / `DELETE` | `/api/conversations/:conversationId/members...` | Add or remove members |
+| `PATCH` | `/api/conversations/:conversationId/members/:userId/role` | Set `admin` or `member` role |
+| `POST` | `/api/conversations/:conversationId/leave` | Leave a group or channel |
+| `POST` | `/api/conversations/:conversationId/join` | Join a channel |
+| `POST` | `/api/conversations/:conversationId/messages` | Send a message, reply, or forward |
+| `GET` | `/api/conversations/:conversationId/messages` | Paginated message history |
+| `GET` | `/api/conversations/:conversationId/messages/search?q=...` | Search messages |
+| `PATCH` / `DELETE` | `/api/conversations/:conversationId/messages/:messageId` | Edit or delete own messages |
+| `POST` | `/api/conversations/:conversationId/messages/read` | Mark messages as read |
+
+### Real-time events
+
+Connect Socket.IO with `auth: { token: accessToken }`. The server supports `send-message`, `edit-message`, `delete-message`, `typing`, and `read-messages`; it emits `new-message`, `message-edited`, `message-deleted`, `typing`, `read-receipt`, and presence changes.
+
+Set `REDIS_URL` to enable Redis-backed presence, distributed login rate limiting, and Socket.IO scaling. Without it, presence uses an in-memory fallback and the login limiter remains process-local.
 
 ## Project Structure
 
@@ -68,20 +113,27 @@ This project is mainly a learning and engineering project focused on building a 
 telegram-backend/
 ├── src/
 │   ├── config/
-│   │   └── database.js
+│   │   ├── database.js
+│   │   └── redis.js
 │   │
 │   ├── models/
 │   │   ├── User.js
-│   │   └── Session.js
+│   │   ├── Session.js
+│   │   ├── Conversation.js
+│   │   └── Message.js
 │   │
 │   ├── controllers/
 │   │   ├── auth.controller.js
-│   │   └── user.controller.js
+│   │   ├── user.controller.js
+│   │   ├── conversation.controller.js
+│   │   └── message.controller.js
 │   │
 │   ├── routes/
 │   │   ├── auth.routes.js
 │   │   ├── auth.validation.js
-│   │   └── user.routes.js
+│   │   ├── user.routes.js
+│   │   ├── conversation.routes.js
+│   │   └── message.routes.js
 │   │
 │   ├── middleware/
 │   │   ├── auth.middleware.js
@@ -91,7 +143,13 @@ telegram-backend/
 │   ├── services/
 │   │   ├── auth.service.js
 │   │   ├── session.service.js
+│   │   ├── conversation.service.js
+│   │   ├── presence.service.js
+│   │   ├── cache.service.js
 │   │   └── token.service.js
+│   │
+│   ├── realtime/
+│   │   └── socket.js
 │   │
 │   ├── app.js
 │   └── server.js
@@ -215,6 +273,9 @@ JWT_SECRET=your_secret_here
 
 ACCESS_TOKEN_EXPIRES_IN=15m
 REFRESH_TOKEN_EXPIRES_IN=30d
+
+# Optional Redis support
+REDIS_URL=redis://127.0.0.1:6379
 ```
 
 **Never commit `.env` to GitHub.**
@@ -299,48 +360,57 @@ Content-Type: application/json
 
 ### Phase 2 — Users
 
-* [ ] Update profile
-* [ ] Change username
-* [ ] Bio
-* [ ] Avatar
-* [ ] User search
-* [ ] Online/offline status
-* [ ] Last seen
+* [x] Update profile
+* [x] Change username
+* [x] Bio
+* [x] Avatar URL
+* [x] User search
+* [x] Online/offline status
+* [x] Last seen
 
 ### Phase 3 — Conversations
 
-* [ ] Private conversations
-* [ ] Groups
-* [ ] Conversation members
-* [ ] Group roles
-* [ ] Admin permissions
-* [ ] Add/remove members
-* [ ] Leave groups
-* [ ] Block users
+* [x] Private conversations
+* [x] Groups and channels
+* [x] Conversation members
+* [x] Group roles
+* [x] Admin permissions
+* [x] Add/remove members
+* [x] Leave groups and channels
+* [x] Block users
 
 ### Phase 4 — Messages
 
-* [ ] Send messages
-* [ ] Edit messages
-* [ ] Delete messages
-* [ ] Reply to messages
-* [ ] Forward messages
-* [ ] Message pagination
-* [ ] Message search
-* [ ] Read status
+* [x] Send messages
+* [x] Edit messages
+* [x] Delete messages
+* [x] Reply to messages
+* [x] Forward messages
+* [x] Message pagination
+* [x] Message search
+* [x] Read status
 
 ### Phase 5 — Real-Time Messaging
 
-* [ ] Socket.IO
-* [ ] WebSocket authentication
-* [ ] New message events
-* [ ] Message editing events
-* [ ] Message deletion events
-* [ ] Typing indicators
-* [ ] Online presence
-* [ ] Read receipts
+* [x] Socket.IO
+* [x] WebSocket authentication
+* [x] New message events
+* [x] Message editing events
+* [x] Message deletion events
+* [x] Typing indicators
+* [x] Online presence
+* [x] Read receipts
 
-### Phase 6 — Media
+### Phase 6 — Channels
+
+* [x] Creating channels
+* [x] Joining channels
+* [x] Channel roles
+* [x] Leaving channels
+* [x] Viewing channels
+* [x] Editing and posting in channels
+
+### Phase 7 — Media
 
 * [ ] Image uploads
 * [ ] Video uploads
@@ -349,15 +419,15 @@ Content-Type: application/json
 * [ ] Object storage
 * [ ] Media metadata
 
-### Phase 7 — Scaling
+### Phase 8 — Scaling
 
-* [ ] Redis
-* [ ] Presence storage
-* [ ] Caching
-* [ ] Distributed rate limiting
-* [ ] Socket.IO scaling
+* [x] Redis integration
+* [x] Presence storage
+* [x] Caching
+* [x] Distributed rate limiting
+* [x] Socket.IO scaling
 
-### Phase 8 — Production
+### Phase 9 — Production
 
 * [ ] Docker
 * [ ] Nginx
